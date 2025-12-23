@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>管理员页面 - 什亭之箱</title>
+    <link rel="stylesheet" href="assets/admin.css">
+</head>
+<body>
+    <div class="container">
+    <h1 class="page-title">管理员页面</h1>
+      <form id="adminForm" class="form">
+        <div class="section">
+            <h2>网页标题</h2>
+            <div class="form-group">
+                <label for="pageTitle">标题:</label>
+                <input type="text" id="pageTitle" name="pageTitle">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>网页封面</h2>
+            <div class="form-group">
+                <label for="coverFile">上传封面图片 (最佳格式: 1920x960 JPG/PNG):</label>
+                <input type="file" id="coverFile" accept="image/jpeg,image/png">
+                <img id="coverPreview" class="hidden" alt="封面预览">
+                <button type="button" id="uploadCover">上传并重命名为 fmi.jpg</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>上传活动/事件图片</h2>
+            <div class="form-group">
+                <label for="eventFile">选择活动图片 (JPG / PNG)：</label>
+                <input type="file" id="eventFile" accept="image/jpeg,image/png">
+            </div>
+            <div class="form-group">
+                <label for="eventFilename">保存为文件名（可选，留空使用原文件名）:</label>
+                <input type="text" id="eventFilename" placeholder="例如：ev3.jpg">
+            </div>
+            <div class="form-group">
+                <img id="eventPreview" class="hidden" alt="活动图片预览">
+                <button type="button" id="uploadEvent">上传活动图片</button>
+            </div>
+            <div class="note-small">上传成功后，请在下方的 <strong>事件</strong> 列表中将对应事件的 <code>image</code> 字段改为上传的文件名。</div>
+        </div>
+
+        <div class="section">
+            <h2>上传帖子图片</h2>
+            <div class="form-group">
+                <label for="postFile">选择帖子图片 (JPG / PNG)：</label>
+                <input type="file" id="postFile" accept="image/jpeg,image/png">
+            </div>
+            <div class="form-group">
+                <label for="postFilename">保存为文件名（可选，留空使用原文件名）:</label>
+                <input type="text" id="postFilename" placeholder="例如：post1.jpg">
+            </div>
+            <div class="form-group">
+                <img id="postPreview" class="hidden" alt="帖子图片预览">
+                <button type="button" id="uploadPost">上传帖子图片</button>
+            </div>
+            <div class="note-small">上传成功后，请在下方的 <strong>热门讨论/帖子</strong> 列表中将对应帖子的 <code>image</code> 字段改为上传的文件名。</div>
+        </div>
+
+        <div class="section">
+            <h2>小栏目修改</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="channelName">频道名称:</label>
+                    <input type="text" id="channelName" name="channelName">
+                </div>
+                <div class="form-group">
+                    <label for="channelSub">频道副标题:</label>
+                    <input type="text" id="channelSub" name="channelSub">
+                </div>
+                <div class="form-group full">
+                    <label for="aboutText">关于频道:</label>
+                    <textarea id="aboutText" name="aboutText"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="footerText">页脚:</label>
+                    <input type="text" id="footerText" name="footerText">
+                </div>
+                <div class="form-group">
+                    <label for="hotPosts">热门讨论/帖子 (JSON格式):</label>
+                    <textarea id="hotPosts" name="hotPosts" placeholder='例如：\n[\n  {"titleHtml":"&lt;span style=&quot;font-size:20px;color:#fff&quot;&gt;帖子标题&lt;/span&gt;","image":"post1.jpg","href":"https://example.com"}\n]'></textarea>
+                    <div class="note-small">标题允许 HTML，但<strong>只允许</strong>使用 <code>&lt;span style="font-size:..;color:.."&gt;</code> 修改字号和颜色；其它标签/属性会被自动剥离。</div>
+                </div>
+                <div class="form-group full">
+                    <label for="events">事件 (JSON格式, e.g. [{"title":"事件1","image":"ev1.jpg"}]):</label>
+                    <textarea id="events" name="events"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a id="downloadLink">下载 site-content.json</a>
+            <button type="button" id="saveBtn">保存配置</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+        // Load current config
+        fetch('assets/site-content.json')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('pageTitle').value = data.pageTitle || '';
+                document.getElementById('channelName').value = data.channelName || '';
+                document.getElementById('channelSub').value = data.channelSub || '';
+                document.getElementById('aboutText').value = data.aboutText || '';
+                document.getElementById('footerText').value = data.footerText || '';
+                // migrate: latestVideos -> hotPosts
+                const posts = Array.isArray(data.hotPosts)
+                    ? data.hotPosts
+                    : Array.isArray(data.latestVideos)
+                        ? data.latestVideos.filter(Boolean).map(t => ({ titleHtml: String(t), image: '', href: '' }))
+                        : [];
+                document.getElementById('hotPosts').value = JSON.stringify(posts, null, 2);
+                document.getElementById('events').value = JSON.stringify(data.events || [], null, 2);
+            })
+            .catch(err => console.warn('Failed to load config', err));
+
+        function isSafeColor(value){
+            const v = String(value || '').trim();
+            if(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)) return true;
+            if(/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(\s*,\s*(0|1|0?\.\d+))?\s*\)$/i.test(v)) return true;
+            return false;
+        }
+
+        function isSafeFontSize(value){
+            const v = String(value || '').trim();
+            const m = v.match(/^(\d{1,3})(?:\.(\d+))?(px|rem|em|%)$/i);
+            if(!m) return false;
+            const n = Number(m[1] + (m[2] ? ('.' + m[2]) : ''));
+            return Number.isFinite(n) && n >= 8 && n <= 96;
+        }
+
+        // 只允许 <span style="color/font-size">，其它标签/属性一律剥离
+        function sanitizeLimitedHtml(input){
+            const tpl = document.createElement('template');
+            tpl.innerHTML = String(input || '');
+            const out = document.createElement('span');
+
+            const walk = (node, parent) => {
+                Array.from(node.childNodes).forEach(ch => {
+                    if(ch.nodeType === Node.TEXT_NODE){
+                        parent.appendChild(document.createTextNode(ch.textContent || ''));
+                        return;
+                    }
+                    if(ch.nodeType !== Node.ELEMENT_NODE) return;
+                    const tag = (ch.tagName || '').toLowerCase();
+                    if(tag === 'span'){
+                        const span = document.createElement('span');
+                        const style = ch.getAttribute('style') || '';
+                        style.split(';').forEach(part => {
+                            const idx = part.indexOf(':');
+                            if(idx === -1) return;
+                            const key = part.slice(0, idx).trim().toLowerCase();
+                            const val = part.slice(idx + 1).trim();
+                            if(key === 'color' && isSafeColor(val)) span.style.color = val;
+                            if(key === 'font-size' && isSafeFontSize(val)) span.style.fontSize = val;
+                        });
+                        walk(ch, span);
+                        parent.appendChild(span);
+                        return;
+                    }
+                    // 其它标签：只保留其文本/子节点
+                    walk(ch, parent);
+                });
+            };
+
+            walk(tpl.content, out);
+            return out.innerHTML;
+        }
+
+        function isSafeHref(href){
+            const h = String(href || '').trim();
+            if(!h) return '';
+            if(/^https?:\/\//i.test(h)) return h;
+            if(/^\//.test(h)) return h;
+            if(/^\.\/?/.test(h)) return h;
+            if(/^\.\.\//.test(h)) return h;
+            return '';
+        }
+
+        // helper: try relative API first, then fallback to localhost:3000 (useful when page opened from file:// or other port)
+        async function apiFetch(path, opts){
+            try{
+                const r = await fetch(path, opts);
+                if(r && r.ok) return r;
+            }catch(e){ /* ignore and try fallback */ }
+            try{
+                const base = 'http://localhost:3000';
+                return await fetch(base + path, opts);
+            }catch(e){ throw e; }
+        }
+
+        // Handle cover upload -> POST to /admin/upload-cover and save as fmi.jpg on server
+        document.getElementById('uploadCover').addEventListener('click', async () => {
+            const fileInput = document.getElementById('coverFile');
+            const file = fileInput.files[0];
+            if (!file) return alert('请选择文件');
+            if (!/image\/(jpeg|png)/.test(file.type)) return alert('请上传 JPG 或 PNG 文件');
+            const uploadBtn = document.getElementById('uploadCover');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上传中...';
+            try{
+                const fd = new FormData();
+                fd.append('cover', file);
+                const res = await apiFetch('/admin/upload-cover', { method: 'POST', body: fd });
+                if(!res.ok) throw new Error('上传失败');
+                const json = await res.json();
+                if(json.ok){
+                    const reader = new FileReader();
+                    reader.onload = ()=>{
+                        const el = document.getElementById('coverPreview');
+                        el.src = reader.result;
+                        el.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                    alert('封面上传成功，已保存为：' + (json.file || 'fmi.jpg'));
+                    setTimeout(()=>{ window.location.href = 'index.html?nocache=' + Date.now(); }, 800);
+                }else{
+                    throw new Error(JSON.stringify(json));
+                }
+            }catch(e){
+                console.error(e);
+                alert('上传失败，请检查服务是否启动或网络。');
+            }finally{
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '上传并重命名为 fmi.jpg';
+            }
+        });
+
+        // Handle event image upload -> POST to /admin/upload-event
+        document.getElementById('uploadEvent').addEventListener('click', async () => {
+            const fileInput = document.getElementById('eventFile');
+            const file = fileInput.files[0];
+                if (!file) return alert('请选择活动图片');
+            if (!/image\/(jpeg|png)/.test(file.type)) return alert('请上传 JPG 或 PNG 文件');
+            const filenameInput = document.getElementById('eventFilename');
+            const desired = (filenameInput.value || '').trim();
+            const uploadBtn = document.getElementById('uploadEvent');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上传中...';
+            try{
+                const fd = new FormData();
+                fd.append('image', file);
+                if(desired) fd.append('filename', desired);
+                // send desired filename also as query param to ensure server can access it during upload
+                const uploadPath = '/admin/upload-event' + (desired ? ('?filename=' + encodeURIComponent(desired)) : '');
+                const res = await apiFetch(uploadPath, { method: 'POST', body: fd });
+                if(!res.ok) throw new Error('上传失败');
+                const json = await res.json();
+                if(json.ok){
+                    // show preview
+                    const reader = new FileReader();
+                    reader.onload = ()=>{
+                        const img = document.getElementById('eventPreview');
+                        img.src = reader.result;
+                        img.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                    const saved = json.file;
+                    // copy filename to clipboard if available
+                    try{ await navigator.clipboard.writeText(saved); }catch(e){}
+                    alert('活动图片上传成功：' + saved + '\n请在事件列表中将对应事件的 image 改为该文件名（已复制到剪贴板）。');
+                    // focus events textarea for quick edit
+                    document.getElementById('events').focus();
+                }else{
+                    throw new Error(JSON.stringify(json));
+                }
+            }catch(e){
+                console.error(e);
+                alert('上传失败，请检查服务是否启动或网络。');
+            }finally{
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '上传活动图片';
+            }
+        });
+
+        // Handle post image upload -> reuse /admin/upload-event
+        document.getElementById('uploadPost').addEventListener('click', async () => {
+            const fileInput = document.getElementById('postFile');
+            const file = fileInput.files[0];
+            if (!file) return alert('请选择帖子图片');
+            if (!/image\/(jpeg|png)/.test(file.type)) return alert('请上传 JPG 或 PNG 文件');
+            const filenameInput = document.getElementById('postFilename');
+            const desired = (filenameInput.value || '').trim();
+            const uploadBtn = document.getElementById('uploadPost');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上传中...';
+            try{
+                const fd = new FormData();
+                fd.append('image', file);
+                if(desired) fd.append('filename', desired);
+                const uploadPath = '/admin/upload-event' + (desired ? ('?filename=' + encodeURIComponent(desired)) : '');
+                const res = await apiFetch(uploadPath, { method: 'POST', body: fd });
+                if(!res.ok) throw new Error('上传失败');
+                const json = await res.json();
+                if(json.ok){
+                    const reader = new FileReader();
+                    reader.onload = ()=>{
+                        const img = document.getElementById('postPreview');
+                        img.src = reader.result;
+                        img.style.display = 'block';
+                        img.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                    const saved = json.file;
+                    try{ await navigator.clipboard.writeText(saved); }catch(e){}
+                    alert('帖子图片上传成功：' + saved + '\n请在帖子列表中将对应帖子的 image 改为该文件名（已复制到剪贴板）。');
+                    document.getElementById('hotPosts').focus();
+                }else{
+                    throw new Error(JSON.stringify(json));
+                }
+            }catch(e){
+                console.error(e);
+                alert('上传失败，请检查服务是否启动或网络。');
+            }finally{
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '上传帖子图片';
+            }
+        });
+
+        // Save config -> POST to /admin/save-config, then reload index
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            const saveBtn = document.getElementById('saveBtn');
+
+            let hotPosts = [];
+            try{
+                hotPosts = JSON.parse(document.getElementById('hotPosts').value || '[]');
+                if(!Array.isArray(hotPosts)) throw new Error('hotPosts must be array');
+            }catch(e){
+                alert('热门讨论/帖子 JSON 格式不正确，请检查。');
+                return;
+            }
+
+            hotPosts = hotPosts.map(p => {
+                const titleHtml = sanitizeLimitedHtml(p && p.titleHtml !== undefined ? p.titleHtml : '');
+                const image = String((p && p.image) || '').trim();
+                const href = isSafeHref(p && p.href);
+                return { titleHtml, image, href };
+            });
+
+            const data = {
+                pageTitle: document.getElementById('pageTitle').value,
+                channelName: document.getElementById('channelName').value,
+                channelSub: document.getElementById('channelSub').value,
+                aboutText: document.getElementById('aboutText').value,
+                footerText: document.getElementById('footerText').value,
+                hotPosts,
+                adminButton: { text: "管理网页", href: "admin-nom.html" },
+                events: JSON.parse(document.getElementById('events').value || '[]')
+            };
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中...';
+            try{
+                const res = await apiFetch('/admin/save-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if(!res.ok) throw new Error('保存失败');
+                const json = await res.json();
+                if(json.ok){
+                    alert('配置已保存到服务器。页面将在 1 秒后刷新以应用配置。');
+                    setTimeout(()=>{ window.location.href = 'index.html?nocache=' + Date.now(); }, 1000);
+                }else{
+                    throw new Error(JSON.stringify(json));
+                }
+            }catch(e){
+                console.error(e);
+                alert('保存失败，请检查服务是否启动或网络。');
+            }finally{
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存配置';
+            }
+        });
+    </script>
+</body>
+</html>

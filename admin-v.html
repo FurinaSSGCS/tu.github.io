@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>管理员登录</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#0f1720;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;margin:0;padding:16px;padding-left:calc(16px + env(safe-area-inset-left, 0px));padding-right:calc(16px + env(safe-area-inset-right, 0px));padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px))}
+    .card{background:linear-gradient(180deg,#0b1220,#0f1720);padding:28px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.6);width:min(360px, 92vw)}
+    h2{margin:0 0 14px 0;text-align:center}
+    label{display:block;margin:10px 0 6px;font-size:14px;color:#cfd8e3}
+    input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:#fff}
+    button{margin-top:16px;width:100%;padding:10px;border-radius:8px;border:0;background:#ffb86b;color:#081018;font-weight:700;cursor:pointer}
+    .warn{position:fixed;left:50%;top:20px;transform:translateX(-50%) translateY(-20px);background:#ff4757;color:#fff;padding:12px 18px;border-radius:8px;opacity:0;pointer-events:none}
+    .warn.show{animation:warn-in 300ms ease forwards}
+    .warn.hide{animation:warn-out 300ms ease forwards}
+    @keyframes warn-in{to{transform:translateX(-50%) translateY(0);opacity:1}}
+    @keyframes warn-out{to{transform:translateX(-50%) translateY(-20px);opacity:0}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>管理员登录</h2>
+    <label for="user">用户名</label>
+    <input id="user" autocomplete="username">
+    <label for="pass">密码</label>
+    <input id="pass" type="password" autocomplete="current-password">
+    <button id="login">登录</button>
+  </div>
+
+  <div id="warn" class="warn">请不要尝试作弊</div>
+
+  <script>
+    const injPattern = /(\'|\"|--|;|\/\*|\*\/|\b(select|insert|update|delete|drop|union|or|and)\b)/i;
+
+    function showWarnThenRedirect(){
+      const w = document.getElementById('warn');
+      w.classList.remove('hide');
+      w.classList.add('show');
+      setTimeout(()=>{ w.classList.remove('show'); w.classList.add('hide'); }, 3000);
+      setTimeout(()=>{ location.href = 'index.html'; }, 3200);
+    }
+
+    document.getElementById('login').addEventListener('click', async ()=>{
+      const u = (document.getElementById('user').value || '').trim();
+      const p = (document.getElementById('pass').value || '').trim();
+      if(injPattern.test(u) || injPattern.test(p)){
+        showWarnThenRedirect();
+        return;
+      }
+      try{
+        const res = await fetch('/admin/creds');
+        if(!res.ok) throw new Error('no creds');
+        const list = await res.json();
+        const matched = list.find(it=> it.user === u);
+        if(!matched){ location.href = '403.html'; return; }
+        try{
+          const decoded = atob(matched.password);
+          if(decoded === p){
+            location.href = 'admin-nom.html';
+            return;
+          }
+        }catch(e){
+        }
+        location.href = '403.html';
+      }catch(e){
+        console.error(e);
+        alert('无法联系管理服务，请稍后再试');
+      }
+    });
+  </script>
+</body>
+</html>
